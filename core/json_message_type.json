@@ -1,0 +1,110 @@
+[
+  //SIGNAL, actions or messages sended from the system
+  {
+    "timestamp":"2018-10-17T19:51:54.126486939+02:00",
+    "type":"SIGNAL",
+    "comunication":{
+      "type":"DISCONNECT",
+      "channels":[],
+      "client":[{"uuid":""}]
+    }
+  },
+  {
+    "timestamp":"2018-10-17T19:51:54.126486939+02:00",
+    "type":"SIGNAL",
+    "comunication":{
+      "type":"SHUTDOWN",
+      "channels":[],
+      "client":{}
+    }
+  },
+
+  //MESSAGE
+
+  {
+    "timestamp":"2018-10-17T19:51:54.126486939+02:00",
+    "type":"MESSAGE",
+    "comunication":{
+      "type":"CONTENT",
+      "channels":[],
+      "client":{}
+    },
+    "data":{}
+  },
+  {
+    "timestamp":"2018-10-17T19:51:54.126486939+02:00",
+    "type":"MESSAGE",
+    "comunication":{
+      "type":"SUBSCRIPTION",
+      "channels":[],
+      "client":{}
+    },
+    "data":{}
+  },
+  {
+    "timestamp":"2018-10-17T19:51:54.126486939+02:00",
+    "type":"MESSAGE",
+    "comunication":{
+      "type":"UNSUBSCRIPTION",
+      "channels":[],
+      "client":{}
+    },
+    "data":{}
+  },
+  {
+  "timestamp":"2018-10-17T19:51:54.126486939+02:00",
+  "type":"MESSAGE",
+  "comunication":{
+    "type":"REGISTRATION",
+    "channels":[],
+    "client":{}
+    },
+    "data":{}
+  },
+
+
+  //NOTIFICATION
+  {
+    "timestamp":"2018-10-17T19:51:54.126486939+02:00",
+    "type":"NOTIFICATION",
+    "comunication":{
+      "type":"INFO",
+      "client":[{}],
+      "channels":[{}],
+      "description":"",
+      "data":{
+      }
+    }
+  },
+  {
+    "timestamp":"2018-10-17T19:51:54.126486939+02:00",
+    "type":"NOTIFICATION",
+    "comunication":{
+      "type":"WARNING",
+      "client":[{}],//channel destination
+      "channels":[{}],//client destinations
+      "description":"",
+      "data":{
+
+      }
+    }
+  },
+  {
+    "timestamp":"2018-10-17T19:51:54.126486939+02:00",
+    "type":"NOTIFICATION",
+    "comunication":{
+      "type":"ERROR",
+      "client":[{}],//channel destination
+      "channels":[{}],//client destinations
+      "description":"",
+      "data":{
+
+      }
+    }
+  },
+
+
+
+
+
+]
