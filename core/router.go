@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"log"
@@ -22,10 +23,9 @@ const (
 	TIMEOUT  = "TIMEOUT"
 )
 
-
-const(
-	REDIS="REDIS"
-	MEMORY="MEMORY"
+const (
+	REDIS  = "REDIS"
+	MEMORY = "MEMORY"
 )
 
 type Signal struct {
@@ -67,14 +67,16 @@ func (r *Router) IsActive() bool {
 	return r.active
 }
 
-func NewRouter(status chan string) *Router {
+func NewRouter(status chan string) (*Router, error) {
 
 	engine_type := Configuration.Engine.Engine_type
 	var engine_temp IEngine
-	if engine_type == REDIS{
+	if engine_type == REDIS {
 		engine_temp = NewRedisEngine(status)
-	}else{
+	} else if engine_type == MEMORY {
 		engine_temp = NewEngine(status)
+	} else {
+		return nil, errors.New("Engine not supported")
 	}
 
 	return &Router{
@@ -86,7 +88,7 @@ func NewRouter(status chan string) *Router {
 		input:                make(chan IMessage),
 		nodes:                NewNodeTree(),
 		engine:               engine_temp,
-	}
+	}, nil
 }
 
 func (r *Router) GetClient(uuid uuid.UUID) *Client {

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"github.com/op/go-logging"
 	"sync"
 )
@@ -26,10 +27,14 @@ func NewApp() *App {
 	}
 }
 
-func (a *App) Init() {
+func (a *App) Init() error {
 	var wg sync.WaitGroup
 	wg.Add(2)
-	router := NewRouter(a.status)
+	router, err := NewRouter(a.status)
+	if err != nil {
+		return errors.New("Error during roter initialization ")
+		wg.Done()
+	}
 	router.Init()
 	server := NewServer(a.status)
 	server.Init(router, &wg)
@@ -39,4 +44,5 @@ func (a *App) Init() {
 	}
 	Log.Infof("Waiting for connections...")
 	wg.Wait()
+	return nil
 }

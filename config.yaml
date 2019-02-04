@@ -6,7 +6,7 @@ http:
   schema: http
 
 engine:
-  engine_type: REDIS
+  engine_type: REsDIS
 
 authorization:
   authorization_type: token
