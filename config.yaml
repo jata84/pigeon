@@ -1,0 +1,17 @@
+websocket:
+  port: 4444
+  schema: ws
+http:
+  port: 8081
+  schema: http
+
+engine:
+  engine_type: REDIS
+
+authorization:
+  authorization_type: token
+  authorization_token: test
+
+main:
+  gracetime: 1000
+  logpath: logfile.log
