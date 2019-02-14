@@ -27,7 +27,11 @@ func main() {
 
 	core.Log.Info("Init Application")
 	app := core.NewApp()
-	app.Init()
+	err := app.Init()
+	if err != nil {
+		core.Log.Errorf("%v", err)
+	}
+
 	core.Log.Info("Close Application")
 
 }

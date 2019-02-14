@@ -8,6 +8,7 @@
     >
       <v-list dense>
         <LeftMenuItem icon-name="home"><router-link to="/home">Home</router-link></LeftMenuItem>
+        <LeftMenuItem icon-name="home"><router-link to="/monitor">Monitor</router-link></LeftMenuItem>
         <LeftMenuItem icon-name="contact_mail"><router-link to="/about">About</router-link></LeftMenuItem>
         <LeftMenuItem icon-name="forum"><router-link to="/namespace">Channels</router-link></LeftMenuItem>
         <LeftMenuItem icon-name="compare_arrows"><router-link to="/connections">Connections</router-link></LeftMenuItem>

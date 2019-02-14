@@ -11,7 +11,7 @@ const connections = {
   },
   mutations: { 
     addConnection (state,connection){
-      state.connections.push(connection)
+        state.connections.push(connection)
       },
     updateConnection (state,id,connection){
               let connectionElement = state.connections.findIndex(function (element) {
@@ -106,6 +106,22 @@ const clients = {
   }
 }
 
+const notifications = {
+    state:{
+        notifications:[]
+    },
+    mutations:{
+        addNotifications (state,notification){
+            state.notification.push(notification)
+        }
+    },
+    actions: {
+
+    },
+    getters: {
+
+    }
+}
 
 
 const channels = {
@@ -150,7 +166,8 @@ export default new Vuex.Store({
   modules:{
     connections,
     clients,
-    channels
+    channels,
+    notifications
   }
 })
 

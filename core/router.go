@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"log"
@@ -95,6 +96,10 @@ func (r *Router) GetClient(uuid uuid.UUID) *Client {
 	return r.registered_clients.GetById(uuid)
 }
 
+func (r *Router) GetClientUnregistered(uuid uuid.UUID) *Client {
+	return r.unregistered_clients.GetById(uuid)
+}
+
 func (r *Router) SendSignal(s *Signal) {
 	go func() {
 		r.engine.PublishSignal(s)
@@ -115,19 +120,28 @@ func (r *Router) routingCriteria(m IMessage) {
 	communication_type := m.GetCommunicationType()
 
 	client := m.GetClient()
-	if (message_type == MESSAGE) && (communication_type == REGISTRATION) {
+	var client_unregistered, client_registered *Client
+	if client != nil {
+		client_unregistered = r.GetClientUnregistered(client.Id)
+		client_registered = r.GetClient(client.Id)
+	}
+
+	if (client_unregistered != nil) && (message_type == MESSAGE) && (communication_type == REGISTRATION) {
 		if r.unregistered_clients.ClientExists(client) {
+			client = client_unregistered
 			r.registered_clients.AddClient(client)
 			r.unregistered_clients.RemoveClient(client)
 			client.SetRegistered(true)
 			r.SendMessage(NewNotificationRegistration(client, WEBSOCKET))
+			r.SendMessage(NewNotificationInfo(ADMIN_CHANNEL, nil, fmt.Sprintf("user registered %v", client.Id.String()), WEBSOCKET))
+
 			Log.Debugf("user registered %v", client.Id.String())
 		}
 
-	} else if (message_type == MESSAGE) && (communication_type == SUBSCRIPTION) {
+	} else if (client_registered != nil) && (message_type == MESSAGE) && (communication_type == SUBSCRIPTION) {
 
 		var client *Client
-		client = m.GetClient()
+		client = client_registered
 		if client == nil {
 			Log.Errorf("message does not contain client to subscribe")
 			return
@@ -138,12 +152,13 @@ func (r *Router) routingCriteria(m IMessage) {
 			r.Subscribe(node_list, client)
 			notification := NewNotificationSubscription(client, WEBSOCKET, node_list)
 			r.SendMessage(notification)
+			r.SendMessage(NewNotificationInfo(ADMIN_CHANNEL, nil, fmt.Sprintf("user subscribed %v", client.Id.String()), WEBSOCKET))
 			Log.Infof("user %v subscribed to %v", client.Id.String(), m.GetNamespacesNames())
 		} else {
 			Log.Errorf("client not registered %v, cannot create subscription", client.Id.String())
 		}
-	} else if (message_type == MESSAGE) && (communication_type == UNSUBSCRIPTION) {
-		client := m.GetClient()
+	} else if (client_registered != nil) && (message_type == MESSAGE) && (communication_type == UNSUBSCRIPTION) {
+		client = client_registered
 		if client.registered {
 			node_list := m.GetNamespacesNames()
 			r.Unsubscribe(node_list, client)
@@ -159,16 +174,22 @@ func (r *Router) routingCriteria(m IMessage) {
 			Log.Debugf("message send to %v", namespace)
 		}
 
-	} else if (message_type == NOTIFICATION) && (communication_type == REGISTRATION) {
-		client := m.GetClient()
+	} else if (client_registered != nil) && (message_type == NOTIFICATION) && (communication_type == REGISTRATION) {
+		client = client_registered
 		client.Write(m)
-	} else if (message_type == NOTIFICATION) && (communication_type == SUBSCRIPTION) {
-		client := m.GetClient()
+	} else if (client_registered != nil) && (message_type == NOTIFICATION) && (communication_type == SUBSCRIPTION) {
+		client = client_registered
 		client.Write(m)
 
-	} else if (message_type == NOTIFICATION) && (communication_type == UNSUBSCRIPTION) {
-		client := m.GetClient()
+	} else if (client_registered != nil) && (message_type == NOTIFICATION) && (communication_type == UNSUBSCRIPTION) {
+		client = client_registered
 		client.Write(m)
+
+	} else if (client_registered != nil) && (message_type == NOTIFICATION) && (communication_type == INFO) {
+		for _, namespace := range m.GetNamespacesNames() {
+			r.nodes.SendMessage(m)
+			Log.Debugf("notification send to %v", namespace)
+		}
 
 	} else if message_type == SIGNAL {
 		for _, namespace := range m.GetNamespacesNames() {

@@ -6,6 +6,7 @@ import ChannelDetail from './views/ChannelDetail.vue'
 import About from './views/About.vue'
 import Connections from './views/Connections.vue'
 import Lab from './views/Lab.vue'
+import Monitor from './views/Monitor.vue'
 
 Vue.use(Router)
 
@@ -15,6 +16,11 @@ export default new Router({
       path: '/',
       name: 'home',
       component: Home
+    },
+    {
+      path: '/monitor',
+      name: 'monitor',
+      component: Monitor
     },
     {
       path: '/namespace',

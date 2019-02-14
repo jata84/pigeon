@@ -7,10 +7,11 @@ import (
 )
 
 const (
-	ROUTER    = "Router"
-	WEBSOCKET = "Websocket"
-	API       = "Api"
-	ENGINE    = "Engine"
+	ROUTER        = "Router"
+	WEBSOCKET     = "Websocket"
+	API           = "Api"
+	ENGINE        = "Engine"
+	ADMIN_CHANNEL = "Admin"
 )
 
 var LogApp = logging.MustGetLogger("APP")
@@ -32,7 +33,7 @@ func (a *App) Init() error {
 	wg.Add(2)
 	router, err := NewRouter(a.status)
 	if err != nil {
-		return errors.New("Error during roter initialization ")
+		return errors.New("Error during router initialization ")
 		wg.Done()
 	}
 	router.Init()

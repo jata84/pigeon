@@ -1,12 +1,12 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"github.com/op/go-logging"
 	"sync"
 	"time"
-	"errors"
 )
 
 var LogEngine = logging.MustGetLogger("Engine")
@@ -14,7 +14,7 @@ var LogEngine = logging.MustGetLogger("Engine")
 type IEngine interface {
 	PublishSignal(signal *Signal)
 	PublishMessage(message IMessage) error
-	Init(out chan IMessage, chan_signal chan *Signal)error
+	Init(out chan IMessage, chan_signal chan *Signal) error
 	GetStatus() bool
 }
 
@@ -77,31 +77,33 @@ func (re *RedisEngine) subscribe(out chan IMessage, chan_signal chan *Signal) {
 		case redis.Message:
 			fmt.Println(v.Channel)
 			if v.Channel == SIGNAL {
-				/*if signal.signal_type == DISCONNECT {
-					re.active=false
-					Log.Debugf("engine disconected by signal")
-					break
-				} else if signal.signal_type == TIMEOUT {
-					Log.Debugf("engine disconected by timeout")
-					break
-				} else {
-					break
-				}*/
 				fmt.Printf("%s: SIGNAL: %s\n", v.Channel, v.Data)
 			} else if v.Channel == MESSAGE {
-				fmt.Printf("MESSAGE: %s\n", v.Data)
-				message,json_error := NewMessageFromJson(string(v.Data))
-				if json_error!=nil{
-					Log.Debugf("error decoding message %s",json_error)
-				}else{
-					Log.Debugf("receive message by engine %v",message)
+				message, json_error := NewMessageFromJson(string(v.Data))
+				if json_error != nil {
+					Log.Debugf("error decoding message %s", json_error)
+				} else {
+
+					Log.Debugf("receive message by engine %v", message)
 					out <- message
+
+				}
+
+			} else if v.Channel == NOTIFICATION {
+				message, json_error := NewMessageFromJson(string(v.Data))
+				if json_error != nil {
+					Log.Debugf("error decoding message %s", json_error)
+				} else {
+					Log.Debugf("receive message by engine %v", message)
+					out <- message
+
 				}
 
 			}
 
 		case redis.Subscription:
 			fmt.Printf("%s: %s %d\n", v.Channel, v.Kind, v.Count)
+
 		case error:
 			fmt.Println(v)
 		}
@@ -147,12 +149,12 @@ func (re *RedisEngine) subscribe(out chan IMessage, chan_signal chan *Signal) {
 }
 
 func (re *RedisEngine) Subscribe(out chan IMessage, chan_signal chan *Signal) {
-	err := re.psc.Subscribe(MESSAGE)
+	err := re.psc.Subscribe(MESSAGE, NOTIFICATION, SIGNAL)
 
 	if err != nil {
-		Log.Debugf("error subscribing redis %s",err)
+		Log.Debugf("error subscribing redis %s", err)
 	}
-	go re.subscribe(out,chan_signal)
+	go re.subscribe(out, chan_signal)
 }
 
 func (re *RedisEngine) PublishSignal(s *Signal) {
@@ -166,12 +168,12 @@ func (re *RedisEngine) PublishMessage(m IMessage) error {
 	channel_type := m.GetMessageType()
 	message_json, _ := m.ToJson()
 	redisServerAddr := "localhost:6379"
-	push_connection,err :=  redis.Dial("tcp", redisServerAddr)
+	push_connection, err := redis.Dial("tcp", redisServerAddr)
 	defer push_connection.Close()
-	if re.c == nil{
+	if re.c == nil {
 		return errors.New("Connection closed")
 	}
-	_,err =push_connection.Do("PUBLISH", channel_type, string(message_json))
+	_, err = push_connection.Do("PUBLISH", channel_type, string(message_json))
 	//err := re.c.Send(, channel_type)
 	if err != nil {
 		return err
@@ -197,7 +199,7 @@ func NewEngine(status chan string) *Engine {
 	}
 }
 
-func (e *Engine) Init(out chan IMessage, chan_signal chan *Signal) error{
+func (e *Engine) Init(out chan IMessage, chan_signal chan *Signal) error {
 	e.m.Lock()
 	defer e.m.Unlock()
 
@@ -279,5 +281,5 @@ func (e *Engine) PublishMessage(m IMessage) error {
 		//Log.Debugf("message sended")
 		e.buffer <- m
 	}()
-return nil
+	return nil
 }

@@ -39,6 +39,7 @@
 							Store.commit('connections/deleteConnection',client.idClient,client)
 						}
 						,()=>{
+
 							Store.commit('connections/addConnection',client)
 						},()=>{
 							Store.commit('connections/updateConnection',client)

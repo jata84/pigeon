@@ -2,11 +2,11 @@ websocket:
   port: 4444
   schema: ws
 http:
-  port: 8081
+  port: 8084
   schema: http
 
 engine:
-  engine_type: REsDIS
+  engine_type: REDIS
 
 authorization:
   authorization_type: token
