@@ -7,6 +7,8 @@ http:
 
 engine:
   engine_type: REDIS
+  engine_address: localhost
+  engine_port: 6379
 
 authorization:
   authorization_type: token

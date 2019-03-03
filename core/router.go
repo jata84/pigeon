@@ -108,11 +108,16 @@ func (r *Router) SendSignal(s *Signal) {
 
 func (r *Router) Init() {
 	//log.Printf("Init Router")
-	r.engine.Init(r.input, r.signals)
+	err := r.engine.Init(r.input, r.signals)
+	if err == nil {
+		go r.routing()
+	} else {
+		Log.Errorf("error during engine initialization")
+	}
 	//root_namespace := (ROOT)
 	//r.channels.AddChannel(root_namespace)
 	//go r.unregisteredTimeout()
-	go r.routing()
+
 }
 
 func (r *Router) routingCriteria(m IMessage) {

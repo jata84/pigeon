@@ -40,7 +40,8 @@ func NewRedisEngine(status chan string) *RedisEngine {
 
 func (re *RedisEngine) Init(out chan IMessage, chan_signal chan *Signal) error {
 	//healthCheckPeriod := time.Duration(5)
-	redisServerAddr := "localhost:6379"
+	//redisServerAddr := "localhost:6379"
+	redisServerAddr := fmt.Sprintf(`%s:%s`, Configuration.Engine.Engine_address, Configuration.Engine.Engine_port)
 	var err error
 	//, redis.DialReadTimeout(healthCheckPeriod+10*time.Second), redis.DialWriteTimeout(10*time.Second)
 	re.c, err = redis.Dial("tcp", redisServerAddr)
@@ -77,7 +78,7 @@ func (re *RedisEngine) subscribe(out chan IMessage, chan_signal chan *Signal) {
 		case redis.Message:
 			fmt.Println(v.Channel)
 			if v.Channel == SIGNAL {
-				fmt.Printf("%s: SIGNAL: %s\n", v.Channel, v.Data)
+				Log.Debugf("%s: SIGNAL: %s\n", v.Channel, v.Data)
 			} else if v.Channel == MESSAGE {
 				message, json_error := NewMessageFromJson(string(v.Data))
 				if json_error != nil {
@@ -102,50 +103,13 @@ func (re *RedisEngine) subscribe(out chan IMessage, chan_signal chan *Signal) {
 			}
 
 		case redis.Subscription:
-			fmt.Printf("%s: %s %d\n", v.Channel, v.Kind, v.Count)
+			Log.Debugf("%s: %s %d\n", v.Channel, v.Kind, v.Count)
 
 		case error:
-			fmt.Println(v)
+			Log.Debugf("err \n")
 		}
 	}
 
-	/*
-		re.active = true
-		re.status <- ENGINE
-		defer re.unsubscribe()
-		for {
-			select {
-			case message := <-re.buffer:
-				Log.Debugf("receive message by engine %v",message.GetContent())
-				out <- message
-				continue
-			case signal := <-re.signal:
-				if signal.signal_type == DISCONNECT {
-					re.active=false
-					Log.Debugf("engine disconected by signal")
-					break
-				} else if signal.signal_type == TIMEOUT {
-					Log.Debugf("engine disconected by timeout")
-					break
-				} else {
-					break
-				}
-			}
-			break
-		}
-		if (re.active){
-			re.active = false
-		}else{
-			if (Configuration.Main.Gracetime > 0){
-				Log.Info("Waiting grace period...")
-				time.Sleep(10000 * time.Millisecond)
-				chan_signal <- NewDisconnectSignal()
-
-			}
-		}
-
-		Log.Info("Closing Engine")
-	*/
 }
 
 func (re *RedisEngine) Subscribe(out chan IMessage, chan_signal chan *Signal) {
@@ -167,7 +131,7 @@ func (re *RedisEngine) PublishSignal(s *Signal) {
 func (re *RedisEngine) PublishMessage(m IMessage) error {
 	channel_type := m.GetMessageType()
 	message_json, _ := m.ToJson()
-	redisServerAddr := "localhost:6379"
+	redisServerAddr := fmt.Sprintf("%s:%s", Configuration.Engine.Engine_address, Configuration.Engine.Engine_port)
 	push_connection, err := redis.Dial("tcp", redisServerAddr)
 	defer push_connection.Close()
 	if re.c == nil {
@@ -257,7 +221,6 @@ func (e *Engine) subscribe(out chan IMessage, chan_signal chan *Signal) {
 			Log.Info("Waiting grace period...")
 			time.Sleep(10000 * time.Millisecond)
 			chan_signal <- NewDisconnectSignal()
-
 		}
 	}
 

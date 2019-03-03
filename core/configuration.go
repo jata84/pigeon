@@ -17,8 +17,10 @@ type Config struct {
 		Scheme string
 	}
 
-	Engine struct{
-		Engine_type string
+	Engine struct {
+		Engine_type    string
+		Engine_address string
+		Engine_port    string
 	}
 
 	Authorization struct {
@@ -28,6 +30,7 @@ type Config struct {
 	Main struct {
 		Gracetime int
 		Logpath   string
+		LogLevel  string
 	}
 }
 
