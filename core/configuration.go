@@ -5,7 +5,26 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
+	"time"
 )
+
+type Info struct {
+	Hosts map[string]time.Time
+}
+
+func NewInfo() Info {
+	return Info{
+		Hosts: make(map[string]time.Time),
+	}
+}
+
+func (i *Info) SetHost(s string) {
+	i.Hosts[s] = time.Now()
+}
+
+func (i *Info) UnsetHost(s string) {
+	i.Hosts[s] = time.Now()
+}
 
 type Config struct {
 	Websocket struct {
@@ -28,9 +47,12 @@ type Config struct {
 		Authorization_token string
 	}
 	Main struct {
-		Gracetime int
-		Logpath   string
-		LogLevel  string
+		NodeBeat    time.Duration //Time host is signaling Node activity
+		NodeTimeout time.Duration //Time host is disabled when a node stay NodeTimeout seconds without transmit information
+		Hostname    string
+		Gracetime   int
+		Logpath     string
+		LogLevel    string
 	}
 }
 

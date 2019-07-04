@@ -82,8 +82,14 @@ func (s *Server) server_websocket(router *Router, w http.ResponseWriter, r *http
 }
 
 func (s *Server) list_clients(router *Router, w http.ResponseWriter, r *http.Request) {
+
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, router.registered_clients.ToJson())
+}
+
+func (s *Server) count_clients(router *Router, w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, fmt.Sprintf("%d", router.registered_clients.clients.Count()))
 }
 
 func (s *Server) list_node_clients(router *Router, w http.ResponseWriter, r *http.Request) {
@@ -149,6 +155,7 @@ func (s *Server) subscribe_channel(router *Router, w http.ResponseWriter, r *htt
 			message_json.Comunication.Client = router.registered_clients.GetById(content_message.GetClient().Id)
 			message_json.Sender = API
 			router.SendMessage(message_json)
+			Log.Debugf("User %v subscription message to %v", message_json.Comunication.ComunicationType, message_json.Comunication.Namespaces)
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, (NewResponse(http.StatusOK, "message sended")).ToJson())
 		} else {
@@ -301,6 +308,10 @@ func (s *Server) serveAPI(router *Router, wg *sync.WaitGroup) {
 
 	s.server_router.HandleFunc("/api/clients", func(w http.ResponseWriter, r *http.Request) {
 		s.list_clients(router, w, r)
+	}).Methods(http.MethodGet)
+
+	s.server_router.HandleFunc("/api/clients/count", func(w http.ResponseWriter, r *http.Request) {
+		s.count_clients(router, w, r)
 	}).Methods(http.MethodGet)
 
 	s.server_router.HandleFunc("/api/clients/{client_key}", func(w http.ResponseWriter, r *http.Request) {

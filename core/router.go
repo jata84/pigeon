@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
@@ -30,14 +31,33 @@ const (
 )
 
 type Signal struct {
-	signal_type    string
-	signal_message string
+	Signal_type    string `json:"signal_type"`
+	Signal_message string `json:"signal_message"`
+	Signal_subtype string `json:"signal_subtype"`
 }
 
-func NewDisconnectSignal() *Signal {
-	return &Signal{
-		signal_type:    DISCONNECT,
-		signal_message: "Disconnection signal",
+func (s *Signal) ToJson() ([]byte, error) {
+	json, err := json.MarshalIndent(s, "", " ")
+	if err != nil {
+		return nil, err
+	} else {
+		return json, nil
+	}
+}
+
+func NewDisconnectSignal() Signal {
+	return Signal{
+		Signal_type:    DISCONNECT,
+		Signal_message: "Disconnection signal",
+		Signal_subtype: "",
+	}
+}
+
+func NewNodeSignal(node string) Signal {
+	return Signal{
+		Signal_type:    INFO,
+		Signal_message: node,
+		Signal_subtype: NODE_BEAT,
 	}
 }
 
@@ -56,7 +76,7 @@ type Router struct {
 	sync.Mutex
 	status               chan string
 	active               bool
-	signals              chan *Signal
+	signals              chan Signal
 	input                chan IMessage
 	nodes                *NodeTree
 	registered_clients   *ClientList
@@ -85,8 +105,8 @@ func NewRouter(status chan string) (*Router, error) {
 		active:               true,
 		registered_clients:   NewClientList(),
 		unregistered_clients: NewClientList(),
-		signals:              make(chan *Signal),
-		input:                make(chan IMessage),
+		signals:              make(chan Signal),
+		input:                make(chan IMessage, 100),
 		nodes:                NewNodeTree(),
 		engine:               engine_temp,
 	}, nil
@@ -100,7 +120,7 @@ func (r *Router) GetClientUnregistered(uuid uuid.UUID) *Client {
 	return r.unregistered_clients.GetById(uuid)
 }
 
-func (r *Router) SendSignal(s *Signal) {
+func (r *Router) SendSignal(s Signal) {
 	go func() {
 		r.engine.PublishSignal(s)
 	}()
@@ -116,6 +136,7 @@ func (r *Router) Init() {
 	}
 	//root_namespace := (ROOT)
 	//r.channels.AddChannel(root_namespace)
+
 	//go r.unregisteredTimeout()
 
 }
@@ -134,11 +155,11 @@ func (r *Router) routingCriteria(m IMessage) {
 	if (client_unregistered != nil) && (message_type == MESSAGE) && (communication_type == REGISTRATION) {
 		if r.unregistered_clients.ClientExists(client) {
 			client = client_unregistered
-			r.registered_clients.AddClient(client)
-			r.unregistered_clients.RemoveClient(client)
+			go r.registered_clients.AddClient(client)
+			go r.unregistered_clients.RemoveClient(client)
 			client.SetRegistered(true)
-			r.SendMessage(NewNotificationRegistration(client, WEBSOCKET))
-			r.SendMessage(NewNotificationInfo(ADMIN_CHANNEL, nil, fmt.Sprintf("user registered %v", client.Id.String()), WEBSOCKET))
+			go r.SendMessage(NewNotificationRegistration(client, WEBSOCKET))
+			go r.SendMessage(NewNotificationInfo(ADMIN_CHANNEL, nil, fmt.Sprintf("user registered %v", client.Id.String()), WEBSOCKET))
 
 			Log.Debugf("user registered %v", client.Id.String())
 		}
@@ -154,10 +175,10 @@ func (r *Router) routingCriteria(m IMessage) {
 
 		if client.registered {
 			node_list := m.GetNamespacesNames()
-			r.Subscribe(node_list, client)
+			go r.Subscribe(node_list, client)
 			notification := NewNotificationSubscription(client, WEBSOCKET, node_list)
-			r.SendMessage(notification)
-			r.SendMessage(NewNotificationInfo(ADMIN_CHANNEL, nil, fmt.Sprintf("user subscribed %v", client.Id.String()), WEBSOCKET))
+			go r.SendMessage(notification)
+			go r.SendMessage(NewNotificationInfo(ADMIN_CHANNEL, nil, fmt.Sprintf("user subscribed %v", client.Id.String()), WEBSOCKET))
 			Log.Infof("user %v subscribed to %v", client.Id.String(), m.GetNamespacesNames())
 		} else {
 			Log.Errorf("client not registered %v, cannot create subscription", client.Id.String())
@@ -166,16 +187,16 @@ func (r *Router) routingCriteria(m IMessage) {
 		client = client_registered
 		if client.registered {
 			node_list := m.GetNamespacesNames()
-			r.Unsubscribe(node_list, client)
+			go r.Unsubscribe(node_list, client)
 			notification := NewNotificationUnsubscription(client, WEBSOCKET, node_list)
-			r.SendMessage(notification)
+			go r.SendMessage(notification)
 			Log.Infof("user %v unsubscribed to %v", client.Id.String(), m.GetNamespacesNames())
 		} else {
 			Log.Errorf("client not registered %v, cannot create subscription", client.Id.String())
 		}
 	} else if (message_type == MESSAGE) && (communication_type == MESSAGE) {
 		for _, namespace := range m.GetNamespacesNames() {
-			r.nodes.SendMessage(m)
+			go r.nodes.SendMessage(m)
 			Log.Debugf("message send to %v", namespace)
 		}
 
@@ -192,13 +213,13 @@ func (r *Router) routingCriteria(m IMessage) {
 
 	} else if (client_registered != nil) && (message_type == NOTIFICATION) && (communication_type == INFO) {
 		for _, namespace := range m.GetNamespacesNames() {
-			r.nodes.SendMessage(m)
+			go r.nodes.SendMessage(m)
 			Log.Debugf("notification send to %v", namespace)
 		}
 
 	} else if message_type == SIGNAL {
 		for _, namespace := range m.GetNamespacesNames() {
-			r.nodes.SendMessage(m)
+			go r.nodes.SendMessage(m)
 			Log.Debugf("user %v subscribed to %v", client.Id.String(), namespace)
 
 		}
@@ -210,21 +231,21 @@ func (r *Router) routing() {
 
 	r.active = true
 	r.status <- ROUTER
+
 	for {
 		select {
 		case m := <-r.input:
-			r.routingCriteria(m)
+			go r.routingCriteria(m)
 			continue
 
 		case s := <-r.signals:
-			if s.signal_type == TIMEOUT {
-				log.Println(s.signal_message)
-			} else if s.signal_type == DISCONNECT {
+			if s.Signal_type == TIMEOUT {
+				log.Println(s.Signal_message)
+			} else if s.Signal_type == DISCONNECT {
 				r.engine.PublishSignal(s)
-				Log.Debugf(s.signal_message)
 				break
 			} else {
-				Log.Debugf(s.signal_message)
+				Log.Debugf(s.Signal_message)
 			}
 			break
 		}
@@ -260,7 +281,6 @@ func (r *Router) Subscribe(nodes interface{}, client *Client) {
 			} else {
 				Log.Errorf("Error subscribing to namespace")
 			}
-
 		}
 	}
 
@@ -289,7 +309,7 @@ func (r *Router) NewClient(conn *websocket.Conn) *Client {
 }
 
 func (r *Router) unregisteredTimeout() {
-	ticker := time.NewTicker(60000 * time.Millisecond)
+	ticker := time.NewTicker(10000 * time.Millisecond)
 	defer ticker.Stop()
 	for t := range ticker.C {
 		for item := range r.unregistered_clients.clients.IterBuffered() {
@@ -297,6 +317,7 @@ func (r *Router) unregisteredTimeout() {
 			if client.Time.Sub(t)*(-1) > 10*time.Second {
 				Log.Debugf("removing unregister user %v", client.Id.String())
 				r.RemoveFromUnregisteredClients(client)
+				client.Close()
 			}
 		}
 	}
@@ -310,18 +331,20 @@ func (r *Router) RemoveClient(c *Client) {
 	//client_element := r.registered_clients.GetById(c.Id)
 	//r.Unsubscribe(client_element.node_list, c)
 	r.registered_clients.RemoveClient(c)
-	c.conn.Close()
+	c.Close()
 }
 
 func (r *Router) RemoveFromUnregisteredClients(c *Client) {
 	Log.Debugf("remove client %v unregistered for timeout", c.Id)
 	r.unregistered_clients.RemoveClient(c)
-	c.conn.Close()
+	c.Close()
+
 }
 
 func (r *Router) RemoveFromNodeClient(n *Node, c *Client) {
 	r.Mutex.Lock()
 	defer r.Mutex.Unlock()
 	n.RemoveClient(c)
-	c.conn.Close()
+	c.Close()
+
 }

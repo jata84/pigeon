@@ -8,6 +8,7 @@ import (
 
 var Log = logging.MustGetLogger("RTlogger")
 var Configuration Config
+var Information = NewInfo()
 
 var backend_file = logging.NewLogBackend(os.Stderr, "", 0)
 var backend_console = logging.NewLogBackend(os.Stderr, "", 0)

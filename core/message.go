@@ -31,6 +31,11 @@ const (
 	DISCONNECT = "DISCONNECT"
 )
 
+//SIGNAL SUBTYPE
+const (
+	NODE_BEAT = "NODE_BEAT"
+)
+
 type IMessage interface {
 	GetContent() interface{}
 	GetSender() string
@@ -226,7 +231,7 @@ func NewContentMessage(namespaces interface{}, c *Client, message string, sender
 	return &Message{
 		Sender:       sender,
 		Time:         time.Now(),
-		Comunication: *NewComumnication(CONTENT, namespaces, c),
+		Comunication: *NewComumnication(MESSAGE, namespaces, c),
 		MessageType:  MESSAGE,
 		Data:         message,
 	}
@@ -288,6 +293,21 @@ func NewMessageFromJson(data interface{}) (*Message, error) {
 		json_data_byte = []byte(json_data_string)
 	}
 	var message *Message
+
+	if err := json.Unmarshal(json_data_byte, &message); err != nil {
+		return nil, err
+	} else {
+		return message, nil
+	}
+}
+
+func NewSignalFromJson(data interface{}) (*Signal, error) {
+	json_data_string, _ := data.(string)
+	json_data_byte, byte_ok := data.([]byte)
+	if !byte_ok {
+		json_data_byte = []byte(json_data_string)
+	}
+	var message *Signal
 
 	if err := json.Unmarshal(json_data_byte, &message); err != nil {
 		return nil, err

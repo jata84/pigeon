@@ -12,9 +12,9 @@ import (
 var LogEngine = logging.MustGetLogger("Engine")
 
 type IEngine interface {
-	PublishSignal(signal *Signal)
+	PublishSignal(signal Signal)
 	PublishMessage(message IMessage) error
-	Init(out chan IMessage, chan_signal chan *Signal) error
+	Init(out chan IMessage, chan_signal chan Signal) error
 	GetStatus() bool
 }
 
@@ -26,7 +26,7 @@ type RedisEngine struct {
 	status chan string
 	active bool
 	buffer chan IMessage
-	signal chan *Signal
+	signal chan Signal
 }
 
 func NewRedisEngine(status chan string) *RedisEngine {
@@ -34,11 +34,11 @@ func NewRedisEngine(status chan string) *RedisEngine {
 		status: status,
 		active: true,
 		buffer: make(chan IMessage),
-		signal: make(chan *Signal),
+		signal: make(chan Signal),
 	}
 }
 
-func (re *RedisEngine) Init(out chan IMessage, chan_signal chan *Signal) error {
+func (re *RedisEngine) Init(out chan IMessage, chan_signal chan Signal) error {
 	//healthCheckPeriod := time.Duration(5)
 	//redisServerAddr := "localhost:6379"
 	redisServerAddr := fmt.Sprintf(`%s:%s`, Configuration.Engine.Engine_address, Configuration.Engine.Engine_port)
@@ -69,22 +69,34 @@ func (re *RedisEngine) unsubscribe() {
 	re.active = false
 
 }
-func (re *RedisEngine) subscribe(out chan IMessage, chan_signal chan *Signal) {
+func (re *RedisEngine) subscribe(out chan IMessage, chan_signal chan Signal) {
 	defer re.c.Close()
 	re.active = true
 	re.status <- ENGINE
 	for {
 		switch v := re.psc.Receive().(type) {
 		case redis.Message:
-			fmt.Println(v.Channel)
 			if v.Channel == SIGNAL {
-				Log.Debugf("%s: SIGNAL: %s\n", v.Channel, v.Data)
+				//Log.Debugf("%s: SIGNAL: %s\n", v.Channel, v.Data)
+				signal, _ := NewSignalFromJson(string(v.Data))
+				if signal.Signal_type == DISCONNECT {
+					Log.Debugf("engine disconected by signal")
+					break
+				} else if signal.Signal_type == TIMEOUT {
+					Log.Debugf("engine disconected by timeout")
+					break
+				} else if signal.Signal_type == INFO {
+					if signal.Signal_subtype == NODE_BEAT {
+						Information.SetHost(signal.Signal_message)
+					}
+
+				}
+
 			} else if v.Channel == MESSAGE {
 				message, json_error := NewMessageFromJson(string(v.Data))
 				if json_error != nil {
 					Log.Debugf("error decoding message %s", json_error)
 				} else {
-
 					Log.Debugf("receive message by engine %v", message)
 					out <- message
 
@@ -97,13 +109,12 @@ func (re *RedisEngine) subscribe(out chan IMessage, chan_signal chan *Signal) {
 				} else {
 					Log.Debugf("receive message by engine %v", message)
 					out <- message
-
 				}
 
 			}
 
 		case redis.Subscription:
-			Log.Debugf("%s: %s %d\n", v.Channel, v.Kind, v.Count)
+			Log.Debugf("%s: Subscribed\n", v.Channel)
 
 		case error:
 			Log.Debugf("err \n")
@@ -112,7 +123,7 @@ func (re *RedisEngine) subscribe(out chan IMessage, chan_signal chan *Signal) {
 
 }
 
-func (re *RedisEngine) Subscribe(out chan IMessage, chan_signal chan *Signal) {
+func (re *RedisEngine) Subscribe(out chan IMessage, chan_signal chan Signal) {
 	err := re.psc.Subscribe(MESSAGE, NOTIFICATION, SIGNAL)
 
 	if err != nil {
@@ -121,10 +132,16 @@ func (re *RedisEngine) Subscribe(out chan IMessage, chan_signal chan *Signal) {
 	go re.subscribe(out, chan_signal)
 }
 
-func (re *RedisEngine) PublishSignal(s *Signal) {
-	go func() {
+func (re *RedisEngine) PublishSignal(s Signal) {
+	/*go func() {
+		Log.Debugf("Signal Redis")
 		re.signal <- s
-	}()
+	}()*/
+	message_json, _ := s.ToJson()
+	redisServerAddr := fmt.Sprintf("%s:%s", Configuration.Engine.Engine_address, Configuration.Engine.Engine_port)
+	push_connection, _ := redis.Dial("tcp", redisServerAddr)
+	defer push_connection.Close()
+	_, _ = push_connection.Do("PUBLISH", SIGNAL, string(message_json))
 
 }
 
@@ -145,13 +162,28 @@ func (re *RedisEngine) PublishMessage(m IMessage) error {
 	return nil
 }
 
+type Memory struct {
+	Message      chan IMessage
+	Signal       chan Signal
+	Notification chan Notification
+}
+
+func NewMemoryEngine() *Memory {
+	return &Memory{
+		Message:      make(chan IMessage),
+		Signal:       make(chan Signal),
+		Notification: make(chan Notification),
+	}
+}
+
 type Engine struct {
 	m sync.Mutex
 	IEngine
 	status chan string
 	active bool
 	buffer chan IMessage
-	signal chan *Signal
+	signal chan Signal
+	memory *Memory
 }
 
 func NewEngine(status chan string) *Engine {
@@ -159,11 +191,12 @@ func NewEngine(status chan string) *Engine {
 		status: status,
 		active: true,
 		buffer: make(chan IMessage),
-		signal: make(chan *Signal),
+		signal: make(chan Signal),
+		memory: NewMemoryEngine(),
 	}
 }
 
-func (e *Engine) Init(out chan IMessage, chan_signal chan *Signal) error {
+func (e *Engine) Init(out chan IMessage, chan_signal chan Signal) error {
 	e.m.Lock()
 	defer e.m.Unlock()
 
@@ -190,11 +223,35 @@ func (e *Engine) unsubscribe() {
 	e.active = false
 
 }
-func (e *Engine) subscribe(out chan IMessage, chan_signal chan *Signal) {
+
+func (e *Engine) subscribe(out chan IMessage, chan_signal chan Signal) {
 	e.active = true
 	e.status <- ENGINE
 	defer e.unsubscribe()
 	for {
+		select {
+		case message := <-e.memory.Message:
+			Log.Debugf("receive message by engine %v", message.GetContent())
+			out <- message
+			continue
+		case signal := <-e.memory.Signal:
+			if signal.Signal_type == DISCONNECT {
+				e.active = false
+				Log.Debugf("engine disconected by signal")
+				break
+			} else if signal.Signal_type == TIMEOUT {
+				Log.Debugf("engine disconected by timeout")
+				break
+			} else if signal.Signal_type == INFO {
+				if signal.Signal_subtype == NODE_BEAT {
+					Information.SetHost(signal.Signal_message)
+				}
+
+			}
+		}
+	}
+
+	/*for {
 		select {
 		case message := <-e.buffer:
 			Log.Debugf("receive message by engine %v", message.GetContent())
@@ -208,12 +265,13 @@ func (e *Engine) subscribe(out chan IMessage, chan_signal chan *Signal) {
 			} else if signal.signal_type == TIMEOUT {
 				Log.Debugf("engine disconected by timeout")
 				break
-			} else {
-				break
+			}else if signal.signal_type == INFO {
+				Log.Debugf(signal.signal_message)
+
 			}
 		}
-		break
-	}
+
+	}*/
 	if e.active {
 		e.active = false
 	} else {
@@ -232,9 +290,9 @@ func (e *Engine) Subscribe() {
 
 }
 
-func (e *Engine) PublishSignal(s *Signal) {
+func (e *Engine) PublishSignal(s Signal) {
 	go func() {
-		e.signal <- s
+		e.memory.Signal <- s
 	}()
 
 }
@@ -242,7 +300,8 @@ func (e *Engine) PublishSignal(s *Signal) {
 func (e *Engine) PublishMessage(m IMessage) error {
 	go func() {
 		//Log.Debugf("message sended")
-		e.buffer <- m
+		//e.buffer <- m
+		e.memory.Message <- m
 	}()
 	return nil
 }

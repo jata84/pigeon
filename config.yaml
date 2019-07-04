@@ -10,10 +10,14 @@ engine:
   engine_address: localhost
   engine_port: 6379
 
+
 authorization:
   authorization_type: token
   authorization_token: test
 
 main:
+  nodebeat: 10
+  nodetimeout: 15
+  hostname: host1
   gracetime: 1000
   logpath: logfile.log

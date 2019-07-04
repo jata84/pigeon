@@ -23,6 +23,7 @@ func main() {
 			core.Log.Info("Version PreRelease:", VersionPrerelease)
 		}
 	}
+
 	core.LoadConfig()
 
 	core.Log.Info("Init Application")

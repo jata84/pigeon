@@ -110,11 +110,28 @@ func (c *Client) SendMessage(m IMessage) {
 	c.router.SendMessage(m)
 }
 
+func (c *Client) Close() {
+	c.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	time.Sleep(time.Duration(1))
+	c.conn.Close()
+
+}
+
 func NewClient(conn *websocket.Conn, r *Router) *Client {
 	client_id := uuid.New()
 	if conn != nil {
 		conn.SetCloseHandler(func(code int, text string) error {
-			client := r.registered_clients.GetById(client_id)
+			client_registered := r.registered_clients.GetById(client_id)
+			client_unregistered := r.unregistered_clients.GetById(client_id)
+			var client *Client
+			if client_registered == nil {
+				client = client_unregistered
+			} else {
+				client = client_registered
+			}
+			if client == nil {
+				return nil
+			}
 			for _, node := range client.node_list {
 				namespace_node := r.nodes.FindNamespaceNode(node)
 				if namespace_node != nil {
@@ -126,9 +143,9 @@ func NewClient(conn *websocket.Conn, r *Router) *Client {
 					}
 				}
 			}
-			message := websocket.FormatCloseMessage(code, "")
-
-			return conn.WriteControl(websocket.CloseMessage, message, time.Now().Add(writeWait))
+			r.registered_clients.RemoveClient(client)
+			r.unregistered_clients.RemoveClient(client)
+			return nil
 		})
 	}
 
@@ -221,6 +238,7 @@ func (c *ClientList) GetById(id uuid.UUID) (client *Client) {
 func (c *ClientList) RemoveClient(client *Client) {
 	Log.Debugf("clients %v", c.ToJson())
 	c.clients.Remove(client.Id.String())
+
 }
 
 func (c *ClientList) AddClient(client *Client) {
